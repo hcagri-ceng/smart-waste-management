@@ -1,0 +1,7 @@
+# Çevresel Değişkenler
+.env
+
+# Go Derleme Çıktıları
+bin/
+*.exe
+*.out

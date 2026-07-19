@@ -3,9 +3,14 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"smartwaste/internal/database"
+	"smartwaste/internal/domain/route"
+	"smartwaste/internal/domain/waste"
+	"smartwaste/internal/handler"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
 )
 
@@ -22,4 +27,27 @@ func main() {
 	defer dbpool.Close()
 	// Your application logic here
 	log.Println("Database connection is succesfuly")
+
+	//
+	routeRepo := route.NewPostgresRepository(dbpool)
+	routeHandler := handler.NewRouteHandler(routeRepo)
+	wasteRepo := waste.NewPostgresRepository(dbpool)
+	wasteHandler := handler.NewWasteHandler(wasteRepo)
+
+	app := fiber.New(fiber.Config{
+		AppName: "Smart Waste Management API",
+	})
+
+	api := app.Group("/api/v1")
+	api.Get("/routes/optimal", routeHandler.GetOptimalRoutes)
+	api.Post("/wastes", wasteHandler.HandleCreateWaste)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
+
+	log.Printf("Server is starting on port %s...", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
+	}
 }

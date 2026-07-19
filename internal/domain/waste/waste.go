@@ -13,3 +13,20 @@ type Waste struct {
 	CreatedAt       time.Time `json:"created_at"`         // Verinin sisteme işlendiği an.
 	FillLevelAtDrop float64   `json:"fill_level_at_drop"` // Atığın bırakıldığı andaki çöp kutusunun doluluk seviyesi (sensörlerden gelebilir).
 }
+
+func CalculateCarbonFootprint(wasteType string, weight float64) float64 {
+	multipliers := map[string]float64{
+		"plastic": 1.5, // 1 kg plastik = 1.5 kg CO2
+		"glass":   0.3,
+		"metal":   2.0,
+		"paper":   0.9,
+		"organic": 0.5,
+	}
+
+	multiplier, exists := multipliers[wasteType]
+	if !exists {
+		multiplier = 1.0 // Bilinmeyen atık tipi için standart çarpan
+	}
+
+	return weight * multiplier
+}

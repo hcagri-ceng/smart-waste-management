@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Waste | Yönlü Navigasyon</title>
+    
+    <!-- Leaflet & Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #1e1e1e; color: white;}
+        #header { padding: 15px 20px; background-color: #2d2d2d; border-bottom: 2px solid #4CAF50; display: flex; justify-content: space-between; align-items: center;}
+        #map { height: calc(100vh - 65px); width: 100%; }
+        
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0.8); transform: scale(1); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 50, 50, 0); transform: scale(1.1); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 50, 50, 0); transform: scale(1); }
+        }
+
+        .marker-base { border-radius: 50%; border: 2px solid white; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 12px; color: white; text-shadow: 1px 1px 2px black;}
+        .marker-red { background-color: #ff3232; animation: pulse-red 1.5s infinite; z-index: 1000 !important;}
+        .marker-orange { background-color: #ffa500; }
+        
+        .popup-content { font-size: 14px; color: #333; }
+        .popup-content h4 { margin: 0 0 8px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #d32f2f;}
+        
+        /* OSRM'in varsayılan arayüzünü tamamen gizliyoruz */
+        .leaflet-routing-container { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h2 style="margin: 0; font-size: 20px;">🌍 Smart Waste Yönlü Rota Motoru</h2>
+        <div>
+            <span style="margin-right: 15px;">🔴 Acil Müdahale (Yangın/Gaz)</span>
+            <span>🟠 Standart Toplama (Doluluk)</span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Script Kütüphaneleri -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <!-- Yön Okları İçin Eklenti -->
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+
+    <script>
+        const map = L.map('map').setView([36.8960, 30.7145], 15);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap',
+            maxZoom: 20
+        }).addTo(map);
+
+        let routingControl = null;
+        let markers = [];
+        let drawnLayers = []; // Çizgileri ve okları hafızada tutmak için
+
+        async function fetchAndDrawRoutes() {
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/routes/optimal');
+                const result = await response.json();
+
+                if (!result.success || !result.data) return;
+
+                // 1. Ekranı Temizle (Önceki turdan kalan pinleri, çizgileri ve okları sil)
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+                drawnLayers.forEach(layer => map.removeLayer(layer));
+                drawnLayers = [];
+                
+                if (routingControl) {
+                    map.removeControl(routingControl);
+                }
+
+                let waypoints = [];
+
+                // 2. Yeni Pinleri ve Koordinatları Oluştur
+                result.data.forEach((container, index) => {
+                    waypoints.push(L.latLng(container.latitude, container.longitude));
+
+                    let isEmergency = container.temperature >= 65.0 || container.gas_level_ppm >= 20.0;
+                    let iconClass = isEmergency ? 'marker-base marker-red' : 'marker-base marker-orange';
+                    
+                    const customIcon = L.divIcon({
+                        className: 'custom-icon',
+                        html: `<div class="${iconClass}">${index + 1}</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const popupHTML = `
+                        <div class="popup-content">
+                            <h4>Hedef: ${index + 1}. Sıra</h4>
+                            <strong>Doluluk:</strong> %${container.current_fill_level.toFixed(1)} <br>
+                            <strong>Sıcaklık:</strong> <span style="color:${container.temperature >= 65 ? 'red' : 'black'};">${container.temperature}°C</span> <br>
+                            <strong>Gaz:</strong> <span style="color:${container.gas_level_ppm >= 20 ? 'red' : 'black'};">${container.gas_level_ppm} ppm</span>
+                        </div>
+                    `;
+
+                    let marker = L.marker([container.latitude, container.longitude], { icon: customIcon, zIndexOffset: isEmergency ? 1000 : 0 })
+                        .addTo(map)
+                        .bindPopup(popupHTML);
+                    
+                    markers.push(marker);
+                });
+
+                // 3. Yönlü Rotayı Çiz (Oklar ile)
+                if (waypoints.length > 1) {
+                    routingControl = L.Routing.control({
+                        waypoints: waypoints,
+                        createMarker: function() { return null; },
+                        show: false, // OSRM'in varsayılan, oksuz çizgisini gizliyoruz
+                        addWaypoints: false,
+                        fitSelectedRoutes: true
+                    }).on('routesfound', function(e) {
+                        // OSRM rotayı hesapladığında devreye giriyoruz
+                        var routes = e.routes;
+                        var routeCoordinates = routes[0].coordinates;
+                        
+                        // Kendi özel çizgimizi çiziyoruz
+                        var polyline = L.polyline(routeCoordinates, {color: '#00ff88', weight: 4, opacity: 0.8}).addTo(map);
+                        
+                        // Çizginin üzerine beyaz yön okları ekliyoruz
+                        var arrowDecorator = L.polylineDecorator(polyline, {
+                            patterns: [
+                                {
+                                    offset: '5%',     // İlk ok %5'ten başlasın
+                                    repeat: '100px',  // Her 100 pikselde bir ok koy
+                                    symbol: L.Symbol.arrowHead({
+                                        pixelSize: 15, 
+                                        polygon: true, 
+                                        pathOptions: {stroke: true, color: '#ffffff', fillOpacity: 1, weight: 1}
+                                    })
+                                }
+                            ]
+                        }).addTo(map);
+
+                        // Bir sonraki yenilemede silinebilmesi için hafızaya al
+                        drawnLayers.push(polyline, arrowDecorator);
+                        
+                    }).addTo(map);
+                }
+
+            } catch (error) {
+                console.error("Rota çekilemedi:", error);
+            }
+        }
+
+        fetchAndDrawRoutes();
+        // Verileri 5 saniyede bir otomatik yenile
+        setInterval(fetchAndDrawRoutes, 5000000);
+    </script>
+</body>
+</html>

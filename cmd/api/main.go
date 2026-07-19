@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
 )
 
@@ -38,9 +39,12 @@ func main() {
 		AppName: "Smart Waste Management API",
 	})
 
+	app.Use(cors.New())
+
 	api := app.Group("/api/v1")
 	api.Get("/routes/optimal", routeHandler.GetOptimalRoutes)
 	api.Post("/wastes", wasteHandler.HandleCreateWaste)
+	api.Put("/containers/:id/telemetry", routeHandler.UpdateTelemetry)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"

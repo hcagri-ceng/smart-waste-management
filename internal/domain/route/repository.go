@@ -9,6 +9,7 @@ import (
 
 type Repository interface {
 	GetOptimalRoutes(ctx context.Context) ([]Container, error)
+	UpdateTelemetry(ctx context.Context, id string, temperature, gasLevel, batteryStatus float64) error
 }
 
 type postgresRepository struct {
@@ -64,4 +65,18 @@ func (r *postgresRepository) GetOptimalRoutes(ctx context.Context) ([]Container,
 	}
 
 	return routes, nil
+}
+
+func (r *postgresRepository) UpdateTelemetry(ctx context.Context, id string, temperature, gasLevel, batteryStatus float64) error {
+	query := `
+		UPDATE containers 
+		SET temperature = $1, gas_level_ppm = $2, battery_status = $3 
+		WHERE id = $4
+	`
+	// ID değerini en son parametre ($4) olarak veriyoruz
+	_, err := r.db.Exec(ctx, query, temperature, gasLevel, batteryStatus, id)
+	if err != nil {
+		return fmt.Errorf("telemetri verisi güncellenemedi: %w", err)
+	}
+	return nil
 }

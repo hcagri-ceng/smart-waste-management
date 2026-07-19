@@ -96,10 +96,10 @@
 
                     const popupHTML = `
                         <div class="popup-content">
-                            <h4>Hedef: ${index + 1}. Sıra</h4>
-                            <strong>Doluluk:</strong> %${container.current_fill_level.toFixed(1)} <br>
-                            <strong>Sıcaklık:</strong> <span style="color:${container.temperature >= 65 ? 'red' : 'black'};">${container.temperature}°C</span> <br>
-                            <strong>Gaz:</strong> <span style="color:${container.gas_level_ppm >= 20 ? 'red' : 'black'};">${container.gas_level_ppm} ppm</span>
+                            <h4>Destination: ${index + 1}. Order</h4>
+                            <strong>Capacity:</strong> %${container.current_fill_level.toFixed(1)} <br>
+                            <strong>Temperature:</strong> <span style="color:${container.temperature >= 65 ? 'red' : 'black'};">${container.temperature}°C</span> <br>
+                            <strong>Gas:</strong> <span style="color:${container.gas_level_ppm >= 20 ? 'red' : 'black'};">${container.gas_level_ppm} ppm</span>
                         </div>
                     `;
 
